@@ -2,16 +2,14 @@ package com.hubitems;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.block.Block;
-
-import org.bukkit.entity.EnderPearl;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
-
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -19,18 +17,13 @@ import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
-
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
-public final class HubItems extends JavaPlugin implements Listener {
+public final class HubItems extends JavaPlugin implements Listener, CommandExecutor {
 
-    // Nome del mondo aggiornato a HUB
-    private final String HUB_WORLD_NAME = "HUB";
-
-    // Tracciamento stato giocatori
     private final Set<UUID> pvpActive = new HashSet<>();
     private final Set<UUID> playersHidden = new HashSet<>();
     private final Map<UUID, BukkitTask> pvpTimers = new HashMap<>();
@@ -38,44 +31,55 @@ public final class HubItems extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("HubItems Pro attivato per il mondo HUB!");
+        if (getCommand("hubitemhub") != null) {
+            getCommand("hubitemhub").setExecutor(this);
+        }
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("hubitemhub")) {
+            Player target = (sender instanceof Player) ? (Player) sender : null;
+            if (args.length > 0) target = Bukkit.getPlayer(args[0]);
+
+            if (target != null) {
+                giveHubItems(target);
+                sender.sendMessage(ChatColor.GREEN + "Oggetti consegnati!");
+            }
+            return true;
+        }
+        return false;
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        giveHubItems(event.getPlayer());
-        updateVisibilityFor(event.getPlayer());
-    }
-
-    @EventHandler
-    public void onWorldChange(PlayerChangedWorldEvent event) {
         Player player = event.getPlayer();
-        giveHubItems(player);
-        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) {
-            disablePvPMode(player);
-        }
+        // Attesa di 1.5 secondi per superare il login/spawn di altri plugin
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (player.isOnline()) {
+                    giveHubItems(player);
+                }
+            }
+        }.runTaskLater(this, 30L); 
     }
 
-    private void giveHubItems(Player player) {
-        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
-
+    public void giveHubItems(Player player) {
         player.getInventory().clear();
         disablePvPMode(player);
 
-        // Slot 1 (Indice 0): Spada Diamante
-        ItemStack spada = createItem(Material.DIAMOND_SWORD, ChatColor.RED + "" + ChatColor.BOLD + "Spada PvP (Tieni 3s)");
-        player.getInventory().setItem(0, spada);
+        // Slot 1 (Indice 0): Spada
+        player.getInventory().setItem(0, createItem(Material.DIAMOND_SWORD, ChatColor.RED + "Spada PvP (Tieni 3s)"));
 
         // Slot 2 (Indice 1): Lana Temporanea
-        ItemStack lana = createItem(Material.WHITE_WOOL, ChatColor.YELLOW + "Lana Temporanea (5 sec)", 64);
-        player.getInventory().setItem(1, lana);
+        player.getInventory().setItem(1, createItem(Material.WHITE_WOOL, ChatColor.YELLOW + "Lana Temporanea (5 sec)", 64));
 
-        // Slot 8 (Indice 7): Visibilità Player
+        // Slot 8 (Indice 7): Visibilita
         updateVisibilityItem(player);
 
         // Slot 9 (Indice 8): Ender Bat
-        ItemStack enderBat = createItem(Material.ENDER_PEARL, ChatColor.LIGHT_PURPLE + "" + ChatColor.BOLD + "Ender Bat");
-        player.getInventory().setItem(8, enderBat);
+        player.getInventory().setItem(8, createItem(Material.ENDER_PEARL, ChatColor.LIGHT_PURPLE + "Ender Bat"));
     }
 
     private ItemStack createItem(Material mat, String name) {
@@ -92,52 +96,42 @@ public final class HubItems extends JavaPlugin implements Listener {
         return item;
     }
 
-    // --- GESTIONE PVP E SPADA ---
-
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
         Player player = event.getPlayer();
-        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
 
-        // Annulla il timer precedente se il giocatore cambia slot prima dei 3 secondi
         if (pvpTimers.containsKey(player.getUniqueId())) {
             pvpTimers.get(player.getUniqueId()).cancel();
             pvpTimers.remove(player.getUniqueId());
         }
 
-        ItemStack newSlotItem = player.getInventory().getItem(event.getNewSlot());
+        ItemStack item = player.getInventory().getItem(event.getNewSlot());
 
-        // Se seleziona lo Slot 1 con la spada di diamante
-        if (event.getNewSlot() == 0 && newSlotItem != null && newSlotItem.getType() == Material.DIAMOND_SWORD) {
-            player.sendMessage(ChatColor.YELLOW + "Tieni la spada per 3 secondi per attivare il PvP...");
-            
+        if (event.getNewSlot() == 0 && item != null && item.getType() == Material.DIAMOND_SWORD) {
+            player.sendMessage(ChatColor.YELLOW + "Tieni la spada per 3 secondi...");
+
             BukkitTask task = new BukkitRunnable() {
                 @Override
                 public void run() {
                     enablePvPMode(player);
                 }
-            }.runTaskLater(this, 60L); // 60 tick = 3 secondi
+            }.runTaskLater(this, 60L);
 
             pvpTimers.put(player.getUniqueId(), task);
         } else {
-            // Se sposta lo slot o toglie la spada, rimuove modalità e armatura
             if (pvpActive.contains(player.getUniqueId())) {
                 disablePvPMode(player);
-                player.sendMessage(ChatColor.RED + "Modalità PvP e armatura disattivate!");
             }
         }
     }
 
     private void enablePvPMode(Player player) {
         pvpActive.add(player.getUniqueId());
-        
-        // Equipaggia Armatura in Chainmail (Maglia di ferro)
         player.getEquipment().setHelmet(new ItemStack(Material.CHAINMAIL_HELMET));
         player.getEquipment().setChestplate(new ItemStack(Material.CHAINMAIL_CHESTPLATE));
         player.getEquipment().setLeggings(new ItemStack(Material.CHAINMAIL_LEGGINGS));
         player.getEquipment().setBoots(new ItemStack(Material.CHAINMAIL_BOOTS));
-
-        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "Modalità PvP Attivata! Ora puoi combattere.");
+        player.sendMessage(ChatColor.GREEN + "PvP Attivato!");
     }
 
     private void disablePvPMode(Player player) {
@@ -147,36 +141,26 @@ public final class HubItems extends JavaPlugin implements Listener {
         }
     }
 
-    // Bypassa le Region per consentire il PvP se entrambi i giocatori hanno la modalità attiva
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Player) || !(event.getDamager() instanceof Player)) return;
+        if (event.getEntity() instanceof Player && event.getDamager() instanceof Player) {
+            Player attacker = (Player) event.getDamager();
+            Player victim = (Player) event.getEntity();
 
-        Player attacker = (Player) event.getDamager();
-        Player victim = (Player) event.getEntity();
-
-        if (attacker.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) {
             if (pvpActive.contains(attacker.getUniqueId()) && pvpActive.contains(victim.getUniqueId())) {
-                event.setCancelled(false); // Bypassa il blocco della Region
+                event.setCancelled(false);
             } else {
                 event.setCancelled(true);
             }
         }
     }
 
-    // --- GESTIONE BLOCCHI DI LANA TEMPORANEI (5 SECONDI) ---
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockPlace(BlockPlaceEvent event) {
-        Player player = event.getPlayer();
-        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
-
         if (event.getBlockPlaced().getType() == Material.WHITE_WOOL) {
-            event.setCancelled(false); // Bypassa la protezione della Region
-
+            event.setCancelled(false);
             Block block = event.getBlockPlaced();
 
-            // Rimuove il blocco dopo 5 secondi (100 tick)
             new BukkitRunnable() {
                 @Override
                 public void run() {
@@ -188,41 +172,22 @@ public final class HubItems extends JavaPlugin implements Listener {
         }
     }
 
-    // --- GESTIONE ENDER BAT (SLOT 9) & VISIBILITÀ PLAYER (SLOT 8) ---
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
-
         ItemStack item = event.getItem();
         if (item == null) return;
 
-        // Slot 9: Ender Bat (Supera restrizioni region)
-        if (item.getType() == Material.ENDER_PEARL) {
-            event.setCancelled(false); // Permette il lancio bypassando la region
-        }
-
-        // Slot 8: Colorante Visibilità
         if (item.getType() == Material.LIME_DYE || item.getType() == Material.GRAY_DYE) {
             event.setCancelled(true);
-
             if (playersHidden.contains(player.getUniqueId())) {
-                // Rendi visibili
                 playersHidden.remove(player.getUniqueId());
-                for (Player target : Bukkit.getOnlinePlayers()) {
-                    player.showPlayer(this, target);
-                }
-                player.sendMessage(ChatColor.GREEN + "Giocatori resi VISIBILI!");
+                for (Player target : Bukkit.getOnlinePlayers()) player.showPlayer(this, target);
             } else {
-                // Rendi invisibili
                 playersHidden.add(player.getUniqueId());
                 for (Player target : Bukkit.getOnlinePlayers()) {
-                    if (!target.equals(player)) {
-                        player.hidePlayer(this, target);
-                    }
+                    if (!target.equals(player)) player.hidePlayer(this, target);
                 }
-                player.sendMessage(ChatColor.GRAY + "Giocatori NASCOSTI!");
             }
             updateVisibilityItem(player);
         }
@@ -232,25 +197,6 @@ public final class HubItems extends JavaPlugin implements Listener {
         boolean hidden = playersHidden.contains(player.getUniqueId());
         Material dyeMat = hidden ? Material.GRAY_DYE : Material.LIME_DYE;
         String name = hidden ? ChatColor.RED + "Giocatori: NASCOSTI" : ChatColor.GREEN + "Giocatori: VISIBILI";
-
-        ItemStack dye = createItem(dyeMat, name);
-        player.getInventory().setItem(7, dye);
-    }
-
-    private void updateVisibilityFor(Player joinedPlayer) {
-        for (UUID uuid : playersHidden) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) {
-                p.hidePlayer(this, joinedPlayer);
-            }
-        }
-    }
-
-    // Nasconde la chat dei giocatori se si sceglie di nasconderli
-    @EventHandler
-    public void onAsyncChat(AsyncPlayerChatEvent event) {
-        if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
-
-        event.getRecipients().removeIf(recipient -> playersHidden.contains(recipient.getUniqueId()));
+        player.getInventory().setItem(7, createItem(dyeMat, name));
     }
 }
