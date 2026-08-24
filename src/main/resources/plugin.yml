@@ -1,0 +1,5 @@
+name: HubItems
+version: 2.0
+main: com.hubitems.HubItems
+api-version: 1.13
+description: Plugin avanzato per la gestione dell'Hub con PvP, Lana temporanea, Visibilita ed Ender Pearl.
