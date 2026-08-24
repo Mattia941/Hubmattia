@@ -27,7 +27,7 @@ import java.util.*;
 
 public final class HubItems extends JavaPlugin implements Listener {
 
-    // Nome del mondo HUB
+    // Nome del mondo aggiornato a HUB
     private final String HUB_WORLD_NAME = "HUB";
 
     // Tracciamento stato giocatori
@@ -70,7 +70,7 @@ public final class HubItems extends JavaPlugin implements Listener {
         ItemStack lana = createItem(Material.WHITE_WOOL, ChatColor.YELLOW + "Lana Temporanea (5 sec)", 64);
         player.getInventory().setItem(1, lana);
 
-        // Slot 8 (Indice 7): Visibilita Player
+        // Slot 8 (Indice 7): Visibilità Player
         updateVisibilityItem(player);
 
         // Slot 9 (Indice 8): Ender Bat
@@ -120,10 +120,10 @@ public final class HubItems extends JavaPlugin implements Listener {
 
             pvpTimers.put(player.getUniqueId(), task);
         } else {
-            // Se sposta lo slot o toglie la spada, rimuove modalita e armatura
+            // Se sposta lo slot o toglie la spada, rimuove modalità e armatura
             if (pvpActive.contains(player.getUniqueId())) {
                 disablePvPMode(player);
-                player.sendMessage(ChatColor.RED + "Modalita PvP e armatura disattivate!");
+                player.sendMessage(ChatColor.RED + "Modalità PvP e armatura disattivate!");
             }
         }
     }
@@ -137,7 +137,7 @@ public final class HubItems extends JavaPlugin implements Listener {
         player.getEquipment().setLeggings(new ItemStack(Material.CHAINMAIL_LEGGINGS));
         player.getEquipment().setBoots(new ItemStack(Material.CHAINMAIL_BOOTS));
 
-        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "Modalita PvP Attivata! Ora puoi combattere.");
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "Modalità PvP Attivata! Ora puoi combattere.");
     }
 
     private void disablePvPMode(Player player) {
@@ -147,7 +147,7 @@ public final class HubItems extends JavaPlugin implements Listener {
         }
     }
 
-    // Bypassa le Region per consentire il PvP se entrambi i giocatori hanno la modalita attiva
+    // Bypassa le Region per consentire il PvP se entrambi i giocatori hanno la modalità attiva
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player) || !(event.getDamager() instanceof Player)) return;
@@ -188,7 +188,7 @@ public final class HubItems extends JavaPlugin implements Listener {
         }
     }
 
-    // --- GESTIONE ENDER BAT (SLOT 9) & VISIBILITA PLAYER (SLOT 8) ---
+    // --- GESTIONE ENDER BAT (SLOT 9) & VISIBILITÀ PLAYER (SLOT 8) ---
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInteract(PlayerInteractEvent event) {
@@ -203,7 +203,7 @@ public final class HubItems extends JavaPlugin implements Listener {
             event.setCancelled(false); // Permette il lancio bypassando la region
         }
 
-        // Slot 8: Colorante Visibilita
+        // Slot 8: Colorante Visibilità
         if (item.getType() == Material.LIME_DYE || item.getType() == Material.GRAY_DYE) {
             event.setCancelled(true);
 
