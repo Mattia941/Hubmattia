@@ -39,12 +39,15 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("hubitemhub")) {
-            Player target = (sender instanceof Player) ? (Player) sender : null;
-            if (args.length > 0) target = Bukkit.getPlayer(args[0]);
+            Player target = null;
+            if (args.length > 0) {
+                target = Bukkit.getPlayer(args[0]);
+            } else if (sender instanceof Player) {
+                target = (Player) sender;
+            }
 
-            if (target != null) {
+            if (target != null && target.isOnline()) {
                 giveHubItems(target);
-                sender.sendMessage(ChatColor.GREEN + "Oggetti consegnati!");
             }
             return true;
         }
@@ -54,7 +57,6 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        // Attesa di 1.5 secondi per superare il login/spawn di altri plugin
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -62,7 +64,20 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
                     giveHubItems(player);
                 }
             }
-        }.runTaskLater(this, 30L); 
+        }.runTaskLater(this, 10L); 
+    }
+
+    @EventHandler
+    public void onWorldChange(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (player.isOnline()) {
+                    giveHubItems(player);
+                }
+            }
+        }.runTaskLater(this, 10L);
     }
 
     public void giveHubItems(Player player) {
@@ -72,13 +87,16 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
         // Slot 1 (Indice 0): Spada
         player.getInventory().setItem(0, createItem(Material.DIAMOND_SWORD, ChatColor.RED + "Spada PvP (Tieni 3s)"));
 
-        // Slot 2 (Indice 1): Lana Temporanea
+        // Slot 2 (Indice 1): Lana
         player.getInventory().setItem(1, createItem(Material.WHITE_WOOL, ChatColor.YELLOW + "Lana Temporanea (5 sec)", 64));
 
-        // Slot 8 (Indice 7): Visibilita
+        // Slot 5 (Indice 4): Menu Modalità (Palla)
+        player.getInventory().setItem(4, createItem(Material.HEART_OF_THE_SEA, ChatColor.GRAY + "" + ChatColor.BOLD + "ᴍᴇɴᴜ ᴍᴏᴅᴀʟɪᴛᴀ̀ " + ChatColor.DARK_GRAY + "(Tasto Destro)"));
+
+        // Slot 8 (Indice 7): Visibilità
         updateVisibilityItem(player);
 
-        // Slot 9 (Indice 8): Ender Bat
+        // Slot 9 (Indice 8): Ender Bat / Pearl
         player.getInventory().setItem(8, createItem(Material.ENDER_PEARL, ChatColor.LIGHT_PURPLE + "Ender Bat"));
     }
 
@@ -127,10 +145,12 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
 
     private void enablePvPMode(Player player) {
         pvpActive.add(player.getUniqueId());
-        player.getEquipment().setHelmet(new ItemStack(Material.CHAINMAIL_HELMET));
-        player.getEquipment().setChestplate(new ItemStack(Material.CHAINMAIL_CHESTPLATE));
-        player.getEquipment().setLeggings(new ItemStack(Material.CHAINMAIL_LEGGINGS));
-        player.getEquipment().setBoots(new ItemStack(Material.CHAINMAIL_BOOTS));
+        if (player.getEquipment() != null) {
+            player.getEquipment().setHelmet(new ItemStack(Material.CHAINMAIL_HELMET));
+            player.getEquipment().setChestplate(new ItemStack(Material.CHAINMAIL_CHESTPLATE));
+            player.getEquipment().setLeggings(new ItemStack(Material.CHAINMAIL_LEGGINGS));
+            player.getEquipment().setBoots(new ItemStack(Material.CHAINMAIL_BOOTS));
+        }
         player.sendMessage(ChatColor.GREEN + "PvP Attivato!");
     }
 
