@@ -98,6 +98,7 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
     }
 
     public void giveHubItems(Player player) {
+        // BLOCCO RIGIDO: Se il giocatore NON si trova nel mondo HUB, si disattiva e NON tocca l'inventario
         if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) {
             disablePvPMode(player);
             return;
@@ -138,7 +139,7 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
         return item;
     }
 
-    // BLOCCO DROP OGGETTI NEL MONDO HUB
+    // BLOCCO DROP OGGETTI SOLO NEL MONDO HUB
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onItemDrop(PlayerDropItemEvent event) {
         if (event.getPlayer().getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) {
