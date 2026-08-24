@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.*;
@@ -19,10 +20,13 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
 
 import java.util.*;
 
 public final class HubItems extends JavaPlugin implements Listener, CommandExecutor {
+
+    private final String HUB_WORLD_NAME = "HUB";
 
     private final Set<UUID> pvpActive = new HashSet<>();
     private final Set<UUID> playersHidden = new HashSet<>();
@@ -64,7 +68,7 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
                     giveHubItems(player);
                 }
             }
-        }.runTaskLater(this, 10L); 
+        }.runTaskLater(this, 20L);
     }
 
     @EventHandler
@@ -80,15 +84,33 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
         }.runTaskLater(this, 10L);
     }
 
+    @EventHandler
+    public void onTeleport(PlayerTeleportEvent event) {
+        Player player = event.getPlayer();
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (player.isOnline()) {
+                    giveHubItems(player);
+                }
+            }
+        }.runTaskLater(this, 10L);
+    }
+
     public void giveHubItems(Player player) {
+        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) {
+            disablePvPMode(player);
+            return;
+        }
+
         player.getInventory().clear();
         disablePvPMode(player);
 
         // Slot 1 (Indice 0): Spada
         player.getInventory().setItem(0, createItem(Material.DIAMOND_SWORD, ChatColor.RED + "Spada PvP (Tieni 3s)"));
 
-        // Slot 2 (Indice 1): Lana
-        player.getInventory().setItem(1, createItem(Material.WHITE_WOOL, ChatColor.YELLOW + "Lana Temporanea (5 sec)", 64));
+        // Slot 2 (Indice 1): Lana (Scompare dopo 3 sec)
+        player.getInventory().setItem(1, createItem(Material.WHITE_WOOL, ChatColor.YELLOW + "Lana Temporanea (3 sec)", 64));
 
         // Slot 5 (Indice 4): Menu Modalità (Palla)
         player.getInventory().setItem(4, createItem(Material.HEART_OF_THE_SEA, ChatColor.GRAY + "" + ChatColor.BOLD + "ᴍᴇɴᴜ ᴍᴏᴅᴀʟɪᴛᴀ̀ " + ChatColor.DARK_GRAY + "(Tasto Destro)"));
@@ -96,8 +118,10 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
         // Slot 8 (Indice 7): Visibilità
         updateVisibilityItem(player);
 
-        // Slot 9 (Indice 8): Ender Bat / Pearl
+        // Slot 9 (Indice 8): Ender Bat
         player.getInventory().setItem(8, createItem(Material.ENDER_PEARL, ChatColor.LIGHT_PURPLE + "Ender Bat"));
+
+        player.updateInventory();
     }
 
     private ItemStack createItem(Material mat, String name) {
@@ -114,9 +138,18 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
         return item;
     }
 
+    // BLOCCO DROP OGGETTI NEL MONDO HUB
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onItemDrop(PlayerDropItemEvent event) {
+        if (event.getPlayer().getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) {
+            event.setCancelled(true);
+        }
+    }
+
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
         Player player = event.getPlayer();
+        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
 
         if (pvpTimers.containsKey(player.getUniqueId())) {
             pvpTimers.get(player.getUniqueId()).cancel();
@@ -144,6 +177,8 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
     }
 
     private void enablePvPMode(Player player) {
+        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
+
         pvpActive.add(player.getUniqueId());
         if (player.getEquipment() != null) {
             player.getEquipment().setHelmet(new ItemStack(Material.CHAINMAIL_HELMET));
@@ -167,6 +202,8 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
             Player attacker = (Player) event.getDamager();
             Player victim = (Player) event.getEntity();
 
+            if (!attacker.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
+
             if (pvpActive.contains(attacker.getUniqueId()) && pvpActive.contains(victim.getUniqueId())) {
                 event.setCancelled(false);
             } else {
@@ -177,9 +214,14 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockPlace(BlockPlaceEvent event) {
+        Player player = event.getPlayer();
+        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
+
         if (event.getBlockPlaced().getType() == Material.WHITE_WOOL) {
             event.setCancelled(false);
             Block block = event.getBlockPlaced();
+
+            player.getInventory().setItem(1, createItem(Material.WHITE_WOOL, ChatColor.YELLOW + "Lana Temporanea (3 sec)", 64));
 
             new BukkitRunnable() {
                 @Override
@@ -188,15 +230,28 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
                         block.setType(Material.AIR);
                     }
                 }
-            }.runTaskLater(this, 100L);
+            }.runTaskLater(this, 60L);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
+        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
+
         ItemStack item = event.getItem();
         if (item == null) return;
+
+        if (item.getType() == Material.ENDER_PEARL) {
+            event.setCancelled(true);
+
+            if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+                Vector dir = player.getLocation().getDirection().multiply(1.8);
+                dir.setY(0.6);
+                player.setVelocity(dir);
+            }
+            return;
+        }
 
         if (item.getType() == Material.LIME_DYE || item.getType() == Material.GRAY_DYE) {
             event.setCancelled(true);
@@ -214,9 +269,12 @@ public final class HubItems extends JavaPlugin implements Listener, CommandExecu
     }
 
     private void updateVisibilityItem(Player player) {
+        if (!player.getWorld().getName().equalsIgnoreCase(HUB_WORLD_NAME)) return;
+
         boolean hidden = playersHidden.contains(player.getUniqueId());
         Material dyeMat = hidden ? Material.GRAY_DYE : Material.LIME_DYE;
         String name = hidden ? ChatColor.RED + "Giocatori: NASCOSTI" : ChatColor.GREEN + "Giocatori: VISIBILI";
         player.getInventory().setItem(7, createItem(dyeMat, name));
+        player.updateInventory();
     }
 }
